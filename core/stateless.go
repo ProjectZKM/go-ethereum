@@ -80,3 +80,51 @@ func ExecuteStateless(ctx context.Context, config *params.ChainConfig, vmconfig 
 	stateRoot := db.IntermediateRoot(config.IsEIP158(block.Number()))
 	return stateRoot, receiptRoot, nil
 }
+
+// ExecuteStatelessWithResult runs stateless execution based on a witness, validates
+// gas used and bloom (stateless mode), and also returns the full processing result.
+//
+// This is intended for zkVM-style programs that need additional data (e.g. gas used,
+// executed tx count) in their public output.
+func ExecuteStatelessWithResult(
+	ctx context.Context,
+	config *params.ChainConfig,
+	vmconfig vm.Config,
+	block *types.Block,
+	witness *stateless.Witness,
+) (common.Hash, common.Hash, *ProcessResult, error) {
+	// Create and populate the state database to serve as the stateless backend
+	memdb := witness.MakeHashDB()
+	db, err := state.New(witness.Root(), state.NewDatabase(triedb.NewDatabase(memdb, triedb.HashDefaults), state.NewCodeDB(memdb)))
+	if err != nil {
+		return common.Hash{}, common.Hash{}, nil, err
+	}
+	// Create a blockchain that is idle, but can be used to access headers through
+	chain := &HeaderChain{
+		config:      config,
+		chainDb:     memdb,
+		headerCache: lru.NewCache[common.Hash, *types.Header](256),
+		engine:      beacon.New(ethash.NewFaker()),
+	}
+	processor := NewStateProcessor(chain)
+	validator := NewBlockValidator(config, nil) // No chain, we only validate the state, not the block
+
+	// Run the stateless blocks processing and self-validate certain fields
+	res, err := processor.Process(ctx, block, db, vmconfig)
+	if err != nil {
+		return common.Hash{}, common.Hash{}, nil, err
+	}
+	// Almost everything validated, but receipt and state root needs to be returned.
+	// In stateless mode `ValidateState` checks only GasUsed and Bloom. It reads those
+	// from the block header, so rebuild a header that matches the computed receipts.
+	header := block.Header()
+	header.GasUsed = res.GasUsed
+	validated := types.NewBlock(header, block.Body(), res.Receipts, trie.NewStackTrie(nil))
+	if err = validator.ValidateState(validated, db, res, true); err != nil {
+		return common.Hash{}, common.Hash{}, nil, err
+	}
+
+	receiptRoot := types.DeriveSha(res.Receipts, trie.NewStackTrie(nil))
+	stateRoot := db.IntermediateRoot(config.IsEIP158(block.Number()))
+	return stateRoot, receiptRoot, res, nil
+}
