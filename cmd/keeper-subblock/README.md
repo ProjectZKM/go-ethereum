@@ -32,6 +32,9 @@ Notes:
 - `BlockRLP`/`WitnessRLP` should match the bytes used by `cmd/keeper` payload generation.
 - `TxEnd` is chosen by the host to match the Rust pipeline boundary semantics (typically derived
   from `SUBBLOCK_GAS_LIMIT` and receipts `cumulativeGasUsed`).
+- The guest treats `TxEnd == len(block.Transactions())` as the **last subblock** and will run
+  end-of-block processing (Prague requests, consensus finalization). For earlier subblocks it
+  skips end-of-block processing to match the Rust pipeline semantics.
 
 ## Output (public values)
 
