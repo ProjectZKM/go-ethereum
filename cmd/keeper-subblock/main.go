@@ -22,10 +22,10 @@ import (
 // The block and witness bytes are identical to `cmd/keeper`'s payload generation.
 // This keeps the host-side encoding simple (Rust just concatenates bytes).
 type SubblockPayloadBytes struct {
-	ChainID uint64
-	BlockRLP []byte
+	ChainID    uint64
+	BlockRLP   []byte
 	WitnessRLP []byte
-	TxEnd   uint64
+	TxEnd      uint64
 }
 
 type SubblockOutput struct {
@@ -83,13 +83,13 @@ func main() {
 	header.GasUsed = 0
 	header.Bloom = types.Bloom{}
 
-	block := types.NewBlock(header, body, nil, trie.NewStackTrie(nil))
+	prefixBlock := types.NewBlock(header, body, nil, trie.NewStackTrie(nil))
 
 	stateRoot, receiptRoot, res, err := core.ExecuteStatelessWithResult(
 		context.Background(),
 		chainConfig,
 		vmConfig,
-		block,
+		prefixBlock,
 		&witness,
 	)
 	if err != nil {
