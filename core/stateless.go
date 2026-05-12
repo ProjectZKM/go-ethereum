@@ -93,6 +93,22 @@ func ExecuteStatelessWithResult(
 	block *types.Block,
 	witness *stateless.Witness,
 ) (common.Hash, common.Hash, *ProcessResult, error) {
+	return ExecuteStatelessWithResultSubblock(ctx, config, vmconfig, block, witness, true)
+}
+
+// ExecuteStatelessWithResultSubblock runs stateless execution for a block segment.
+//
+// If isLast is false, it skips end-of-block processing (Prague requests and
+// consensus-engine finalization). This matches the Rust subblock pipeline
+// semantics where only the final segment performs postprocessing.
+func ExecuteStatelessWithResultSubblock(
+	ctx context.Context,
+	config *params.ChainConfig,
+	vmconfig vm.Config,
+	block *types.Block,
+	witness *stateless.Witness,
+	isLast bool,
+) (common.Hash, common.Hash, *ProcessResult, error) {
 	// Create and populate the state database to serve as the stateless backend
 	memdb := witness.MakeHashDB()
 	db, err := state.New(witness.Root(), state.NewDatabase(triedb.NewDatabase(memdb, triedb.HashDefaults), state.NewCodeDB(memdb)))
@@ -110,7 +126,7 @@ func ExecuteStatelessWithResult(
 	validator := NewBlockValidator(config, nil) // No chain, we only validate the state, not the block
 
 	// Run the stateless blocks processing and self-validate certain fields
-	res, err := processor.Process(ctx, block, db, vmconfig)
+	res, err := processor.ProcessSubblock(ctx, block, db, vmconfig, SubblockOpts{IsLast: isLast})
 	if err != nil {
 		return common.Hash{}, common.Hash{}, nil, err
 	}

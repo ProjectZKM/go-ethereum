@@ -84,13 +84,15 @@ func main() {
 	header.Bloom = types.Bloom{}
 
 	prefixBlock := types.NewBlock(header, body, nil, trie.NewStackTrie(nil))
+	isLast := payload.TxEnd == uint64(len(txs))
 
-	stateRoot, receiptRoot, res, err := core.ExecuteStatelessWithResult(
+	stateRoot, receiptRoot, res, err := core.ExecuteStatelessWithResultSubblock(
 		context.Background(),
 		chainConfig,
 		vmConfig,
 		prefixBlock,
 		&witness,
+		isLast,
 	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "stateless execution failed: %v\n", err)
