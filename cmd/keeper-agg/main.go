@@ -20,9 +20,9 @@ type SubblockOutput struct {
 }
 
 type AggregationPayloadBytes struct {
-	ChainID    uint64
-	BlockRLP   []byte
-	Subblocks  []SubblockOutput
+	ChainID   uint64
+	BlockRLP  []byte
+	Subblocks []SubblockOutput
 }
 
 type AggregationOutput struct {
@@ -37,6 +37,9 @@ func init() {
 }
 
 func main() {
+	publicValues := zkruntime.Read[[][]byte]()
+	subblockVK := zkruntime.Read[[8]uint32]()
+	deferredProofsDigest := zkruntime.Read[[8]uint32]()
 	payload := zkruntime.Read[AggregationPayloadBytes]()
 
 	var block types.Block
@@ -47,6 +50,21 @@ func main() {
 	if len(payload.Subblocks) == 0 {
 		fmt.Fprintf(os.Stderr, "payload: no subblocks\n")
 		os.Exit(16)
+	}
+	if len(publicValues) != 0 && len(publicValues) != len(payload.Subblocks) {
+		fmt.Fprintf(os.Stderr, "payload: public values/subblocks length mismatch\n")
+		os.Exit(17)
+	}
+
+	for i, publicValue := range publicValues {
+		publicValuesDigest := zkruntime.Sha256(publicValue)
+		zkruntime.VerifyZKMProof(&subblockVK, &publicValuesDigest)
+		var provedOutput SubblockOutput
+		zkruntime.DeserializeData(publicValue, &provedOutput)
+		if provedOutput != payload.Subblocks[i] {
+			fmt.Fprintf(os.Stderr, "payload: proved subblock output mismatch at %d\n", i)
+			os.Exit(18)
+		}
 	}
 
 	totalTxs := uint64(len(block.Transactions()))
@@ -85,4 +103,5 @@ func main() {
 		SubblockCount: uint64(len(payload.Subblocks)),
 	}
 	zkruntime.Commit(out)
+	zkruntime.CommitDeferredProofsDigest(deferredProofsDigest)
 }
