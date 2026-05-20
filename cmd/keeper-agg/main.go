@@ -37,7 +37,11 @@ func init() {
 }
 
 func main() {
-	publicValues := zkruntime.Read[[][]byte]()
+	publicValuesLen := zkruntime.Read[uint64]()
+	publicValues := make([][]byte, 0, publicValuesLen)
+	for i := uint64(0); i < publicValuesLen; i++ {
+		publicValues = append(publicValues, zkruntime.Read[[]byte]())
+	}
 	subblockVK := zkruntime.Read[[8]uint32]()
 	deferredProofsDigest := zkruntime.Read[[8]uint32]()
 	payload := zkruntime.Read[AggregationPayloadBytes]()
