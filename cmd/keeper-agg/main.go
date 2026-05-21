@@ -73,6 +73,8 @@ func main() {
 
 	totalTxs := uint64(len(block.Transactions()))
 	var prevTxEnd uint64
+	var prevGasUsed uint64
+	var prevExecutedTxCount uint64
 	for i, sb := range payload.Subblocks {
 		if sb.TxEnd < prevTxEnd {
 			fmt.Fprintf(os.Stderr, "subblocks: non-monotonic tx_end at %d\n", i)
@@ -82,13 +84,44 @@ func main() {
 			fmt.Fprintf(os.Stderr, "subblocks: tx_end out of range at %d\n", i)
 			os.Exit(21)
 		}
+		if sb.GasUsed < prevGasUsed {
+			fmt.Fprintf(os.Stderr, "subblocks: non-monotonic gas_used at %d\n", i)
+			os.Exit(25)
+		}
+		if sb.ExecutedTxCount < prevExecutedTxCount {
+			fmt.Fprintf(os.Stderr, "subblocks: non-monotonic executed_tx_count at %d\n", i)
+			os.Exit(26)
+		}
+
+		txDelta := sb.TxEnd - prevTxEnd
+		executedTxDelta := sb.ExecutedTxCount - prevExecutedTxCount
+		if executedTxDelta != txDelta {
+			fmt.Fprintf(os.Stderr, "subblocks: executed_tx_count mismatch at %d: got=%d want=%d\n", i, executedTxDelta, txDelta)
+			os.Exit(26)
+		}
+
+		// If no tx is executed in this subblock, gas/roots should not change.
+		if i > 0 && txDelta == 0 {
+			prev := payload.Subblocks[i-1]
+			if sb.GasUsed != prev.GasUsed || sb.StateRoot != prev.StateRoot || sb.ReceiptRoot != prev.ReceiptRoot {
+				fmt.Fprintf(os.Stderr, "subblocks: empty segment changed output at %d\n", i)
+				os.Exit(27)
+			}
+		}
+
 		prevTxEnd = sb.TxEnd
+		prevGasUsed = sb.GasUsed
+		prevExecutedTxCount = sb.ExecutedTxCount
 	}
 
 	last := payload.Subblocks[len(payload.Subblocks)-1]
 	if last.TxEnd != totalTxs {
 		fmt.Fprintf(os.Stderr, "final subblock does not reach end: tx_end=%d total=%d\n", last.TxEnd, totalTxs)
 		os.Exit(22)
+	}
+	if last.GasUsed != block.GasUsed() {
+		fmt.Fprintf(os.Stderr, "final gas used mismatch: got=%d want=%d\n", last.GasUsed, block.GasUsed())
+		os.Exit(28)
 	}
 	// The aggregation check for correctness: final roots must match the block header.
 	if last.StateRoot != block.Root() {

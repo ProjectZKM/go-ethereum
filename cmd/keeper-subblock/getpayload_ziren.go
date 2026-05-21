@@ -9,4 +9,3 @@ import (
 func getInput() []byte {
 	return zkruntime.Read[[]byte]()
 }
-

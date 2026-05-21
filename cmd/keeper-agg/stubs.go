@@ -6,4 +6,3 @@ package main
 func getInput() []byte {
 	panic("stub")
 }
-

@@ -18,4 +18,3 @@ func getChainConfig(chainID uint64) (*params.ChainConfig, error) {
 		return nil, fmt.Errorf("unsupported chain ID: %d", chainID)
 	}
 }
-

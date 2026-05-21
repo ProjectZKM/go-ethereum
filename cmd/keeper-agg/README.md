@@ -39,7 +39,7 @@ type SubblockOutput struct {
     GasUsed         uint64
     StateRoot       common.Hash
     ReceiptRoot     common.Hash
-    ExecutedTxCount uint64
+    ExecutedTxCount uint64 // cumulative executed txs for prefix [0:TxEnd)
 }
 
 type AggregationPayloadBytes struct {
@@ -76,9 +76,15 @@ Current implementation verifies:
   digest of that public value.
 - Each verified public value deserializes to `SubblockOutput` and exactly equals the corresponding
   `Subblocks[i]`.
-- `tx_end` is non-decreasing and within `[0, total_txs]`
-- The last subblock reaches the end (`tx_end == total_txs`)
-- The last subblock `(stateRoot, receiptRoot)` matches the block header `(Root, ReceiptHash)`
+- `tx_end` is non-decreasing and within `[0, total_txs]`.
+- `gas_used` is non-decreasing.
+- `executed_tx_count` is non-decreasing and treated as a cumulative counter for the executed prefix.
+- Per subblock delta consistency: `(ExecutedTxCount[i]-ExecutedTxCount[i-1]) == (TxEnd[i]-TxEnd[i-1])`
+  (with previous values `0` at `i=0`).
+- If a segment has zero tx delta, gas/roots must remain unchanged from the previous segment.
+- The last subblock reaches the end (`tx_end == total_txs`).
+- Final `gas_used` equals block header `GasUsed`.
+- The last subblock `(stateRoot, receiptRoot)` matches the block header `(Root, ReceiptHash)`.
 
 Not verified:
 - Linking constraints between consecutive subblocks (e.g. chaining intermediate roots), if/when
