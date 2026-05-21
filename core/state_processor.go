@@ -40,6 +40,16 @@ type StateProcessor struct {
 	chain ChainContext // Chain context interface
 }
 
+// SubblockOpts configures segmented (subblock) execution.
+//
+// When executing a block in multiple segments, only the final segment should
+// perform end-of-block operations such as Prague request processing and
+// consensus-engine finalization (rewards, withdrawals, etc).
+type SubblockOpts struct {
+	// IsLast controls whether post-execution processing and finalization is run.
+	IsLast bool
+}
+
 // NewStateProcessor initialises a new StateProcessor.
 func NewStateProcessor(chain ChainContext) *StateProcessor {
 	return &StateProcessor{
@@ -52,6 +62,12 @@ func (p *StateProcessor) chainConfig() *params.ChainConfig {
 	return p.chain.Config()
 }
 
+// ProcessSubblock processes a block segment. If opts.IsLast is false, it skips
+// end-of-block operations (Prague requests and consensus finalization).
+func (p *StateProcessor) ProcessSubblock(ctx context.Context, block *types.Block, statedb *state.StateDB, cfg vm.Config, opts SubblockOpts) (*ProcessResult, error) {
+	return p.process(ctx, block, statedb, cfg, opts.IsLast)
+}
+
 // Process processes the state changes according to the Ethereum rules by running
 // the transaction messages using the statedb and applying any rewards to both
 // the processor (coinbase) and any included uncles.
@@ -60,6 +76,10 @@ func (p *StateProcessor) chainConfig() *params.ChainConfig {
 // returns the amount of gas that was used in the process. If any of the
 // transactions failed to execute due to insufficient gas it will return an error.
 func (p *StateProcessor) Process(ctx context.Context, block *types.Block, statedb *state.StateDB, cfg vm.Config) (*ProcessResult, error) {
+	return p.process(ctx, block, statedb, cfg, true)
+}
+
+func (p *StateProcessor) process(ctx context.Context, block *types.Block, statedb *state.StateDB, cfg vm.Config, finalize bool) (*ProcessResult, error) {
 	var (
 		config      = p.chainConfig()
 		receipts    types.Receipts
@@ -115,13 +135,19 @@ func (p *StateProcessor) Process(ctx context.Context, block *types.Block, stated
 		allLogs = append(allLogs, receipt.Logs...)
 		spanEnd(nil)
 	}
-	requests, err := postExecution(ctx, config, block, allLogs, evm)
-	if err != nil {
-		return nil, err
+	var requests [][]byte
+	if finalize {
+		var err error
+		requests, err = postExecution(ctx, config, block, allLogs, evm)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
-	p.chain.Engine().Finalize(p.chain, header, tracingStateDB, block.Body())
+	if finalize {
+		// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
+		p.chain.Engine().Finalize(p.chain, header, tracingStateDB, block.Body())
+	}
 
 	return &ProcessResult{
 		Receipts: receipts,

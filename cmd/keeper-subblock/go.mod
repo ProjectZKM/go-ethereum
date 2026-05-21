@@ -1,4 +1,4 @@
-module github.com/ethereum/go-ethereum/cmd/keeper
+module github.com/ethereum/go-ethereum/cmd/keeper-subblock
 
 go 1.24.0
 
@@ -44,4 +44,4 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
-replace github.com/ethereum/go-ethereum => ../..
+replace github.com/ethereum/go-ethereum => ../../
