@@ -3,7 +3,7 @@ module github.com/ethereum/go-ethereum/cmd/keeper-agg
 go 1.24.0
 
 require (
-	github.com/ProjectZKM/Ziren/crates/go-runtime/zkvm_runtime v0.0.0-20260519063510-53a8eff4e716
+	github.com/ProjectZKM/Ziren/crates/go-runtime/zkvm_runtime v0.0.0-20260607022201-88e0521b82d3
 	github.com/ethereum/go-ethereum v0.0.0-00010101000000-000000000000
 )
 
