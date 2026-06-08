@@ -58,7 +58,7 @@ roots.
 This program is meant for zkVM builds:
 
 ```bash
-cd cmd/keeper-agg
+cd cmd/keeper-subblock
 GOOS=linux GOARCH=mipsle GOMIPS=softfloat go build -tags "ziren" ./...
 ```
 
