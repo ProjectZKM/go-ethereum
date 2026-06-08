@@ -19,19 +19,24 @@ It is designed to be driven by a host-side pipeline that:
 
 ## Input (stdin)
 
-With the `ziren` build tag enabled, the program reads four values from stdin via
+With the `ziren` build tag enabled, the program reads the following values from stdin via
 `zkvm_runtime.Read[T]` (Ziren go-runtime "bincode-like" encoding compatible with Rust `ZKMStdin::write`):
 
 ```go
-publicValues := zkruntime.Read[[][]byte]()
+publicValuesLen := zkruntime.Read[uint64]()
+publicValues := make([][]byte, 0, publicValuesLen)
+for i := uint64(0); i < publicValuesLen; i++ {
+	publicValues = append(publicValues, zkruntime.Read[[]byte]())
+}
 subblockVK := zkruntime.Read[[8]uint32]()
 deferredProofsDigest := zkruntime.Read[[8]uint32]()
 payload := zkruntime.Read[AggregationPayloadBytes]()
 ```
 
-`publicValues` contains each `keeper-subblock` proof public value in subblock order. In execute-only
-mode it may be empty, which skips deferred proof verification. In proof mode, the host must also
-write the compressed subblock proofs to the zkVM proof stream in the same order.
+The host must first write `publicValuesLen`, then write each `keeper-subblock` proof public value as
+a separate `[]byte` in subblock order. In execute-only mode `publicValuesLen` may be zero, which
+skips deferred proof verification. In proof mode, the host must also write the compressed subblock
+proofs to the zkVM proof stream in the same order.
 
 ```go
 type SubblockOutput struct {
