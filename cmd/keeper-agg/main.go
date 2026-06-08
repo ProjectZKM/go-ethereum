@@ -141,4 +141,9 @@ func main() {
 	}
 	zkruntime.Commit(out)
 	zkruntime.CommitDeferredProofsDigest(deferredProofsDigest)
+	// Stock Go's normal exit does NOT route through zkvm.RuntimeExit, so the
+	// public-values SHA-256 digest (committed_value_digest) would never be
+	// committed. Explicitly run RuntimeExit to commit it (and re-commit the
+	// deferred digest, which is idempotent) and HALT cleanly.
+	zkruntime.RuntimeExit(0)
 }
