@@ -198,25 +198,6 @@ func decodeShort(hash, elems []byte) (node, error) {
 	return &shortNode{key, r, flag}, nil
 }
 
-func decodeFull(hash, elems []byte) (*fullNode, error) {
-	n := &fullNode{flags: nodeFlag{hash: hash}}
-	for i := 0; i < 16; i++ {
-		cld, rest, err := decodeRef(elems)
-		if err != nil {
-			return n, wrapError(err, fmt.Sprintf("[%d]", i))
-		}
-		n.Children[i], elems = cld, rest
-	}
-	val, _, err := rlp.SplitString(elems)
-	if err != nil {
-		return n, err
-	}
-	if len(val) > 0 {
-		n.Children[16] = valueNode(val)
-	}
-	return n, nil
-}
-
 const hashLen = len(common.Hash{})
 
 func decodeRef(buf []byte) (node, []byte, error) {
