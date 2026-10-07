@@ -17,7 +17,8 @@
 package stateless
 
 import (
-	"github.com/ethereum/go-ethereum/common"
+	"unsafe"
+
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -34,34 +35,22 @@ import (
 //
 // Acceleration structures built would need to explicitly validate the witness.
 func (w *Witness) MakeHashDB() ethdb.Database {
-	var (
-		memdb  = rawdb.NewMemoryDatabase()
-		hasher = crypto.NewKeccakState()
-		hash   = make([]byte, 32)
-	)
+	memdb := rawdb.NewMemoryDatabase()
+
 	// Inject all the "block hashes" (i.e. headers) into the ephemeral database
 	for _, header := range w.Headers {
 		rawdb.WriteHeader(memdb, header)
 	}
-	// Inject all the bytecodes into the ephemeral database
+	// Inject all the bytecodes and MPT trie nodes into the ephemeral database.
+	// Each blob is read in place from its string: hashing does not write it,
+	// and the database stores a copy.
 	for code := range w.Codes {
-		blob := []byte(code)
-
-		hasher.Reset()
-		hasher.Write(blob)
-		hasher.Read(hash)
-
-		rawdb.WriteCode(memdb, common.BytesToHash(hash), blob)
+		blob := unsafe.Slice(unsafe.StringData(code), len(code))
+		rawdb.WriteCode(memdb, crypto.Keccak256Hash(blob), blob)
 	}
-	// Inject all the MPT trie nodes into the ephemeral database
 	for node := range w.State {
-		blob := []byte(node)
-
-		hasher.Reset()
-		hasher.Write(blob)
-		hasher.Read(hash)
-
-		rawdb.WriteLegacyTrieNode(memdb, common.BytesToHash(hash), blob)
+		blob := unsafe.Slice(unsafe.StringData(node), len(node))
+		rawdb.WriteLegacyTrieNode(memdb, crypto.Keccak256Hash(blob), blob)
 	}
 	return memdb
 }
