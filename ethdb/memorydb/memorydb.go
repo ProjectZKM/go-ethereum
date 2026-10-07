@@ -93,7 +93,7 @@ func (db *Database) Get(key []byte) ([]byte, error) {
 		return nil, errMemorydbClosed
 	}
 	if entry, ok := db.db[string(key)]; ok {
-		return common.CopyBytes(entry), nil
+		return valueBytes(entry), nil
 	}
 	return nil, errMemorydbNotFound
 }
@@ -106,7 +106,7 @@ func (db *Database) Put(key []byte, value []byte) error {
 	if db.db == nil {
 		return errMemorydbClosed
 	}
-	db.db[string(key)] = common.CopyBytes(value)
+	db.db[string(key)] = valueBytes(value)
 	return nil
 }
 
