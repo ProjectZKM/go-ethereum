@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"math/bits"
 	"unsafe"
 
 	"github.com/ProjectZKM/Ziren/crates/go-runtime/zkvm_runtime"
@@ -80,19 +81,17 @@ func u256ModInverse(a *u256, n *u256) u256 {
 	// Pre-build ymod buffers with modulus in upper half (reused across iterations)
 	var baseYmod [16]uint32
 	var resultYmod [16]uint32
-	copy(baseYmod[8:16], n[:])
-	copy(resultYmod[8:16], n[:])
+	*(*u256)(baseYmod[8:16]) = *n
+	*(*u256)(resultYmod[8:16]) = *n
 
 	for i := 0; i < 256; i++ {
-		wordIdx := i / 32
-		bitIdx := uint(i % 32)
-		if (nMinus2[wordIdx]>>bitIdx)&1 == 1 {
+		if (nMinus2[i>>5]>>uint(i&31))&1 == 1 {
 			// result = result * base mod n
-			copy(resultYmod[0:8], base[:])
+			*(*u256)(resultYmod[0:8]) = base
 			u256ModMul(&result, &resultYmod)
 		}
 		// base = base * base mod n
-		copy(baseYmod[0:8], base[:])
+		*(*u256)(baseYmod[0:8]) = base
 		u256ModMul(&base, &baseYmod)
 	}
 	return result
@@ -128,6 +127,16 @@ func uint256ModInverse(a, n *big.Int) *big.Int {
 type affinePoint [16]uint32
 
 func bigToLE8(v *big.Int) [8]uint32 {
+	if bits.UintSize == 32 {
+		var limbs [8]uint32
+		for i, w := range v.Bits() {
+			if i == 8 {
+				break
+			}
+			limbs[i] = uint32(w)
+		}
+		return limbs
+	}
 	var buf [32]byte
 	b := v.Bytes()
 	// big.Int.Bytes() is big-endian; we need little-endian bytes
@@ -143,6 +152,13 @@ func bigToLE8(v *big.Int) [8]uint32 {
 }
 
 func le8ToBig(limbs [8]uint32) *big.Int {
+	if bits.UintSize == 32 {
+		ws := make([]big.Word, 8)
+		for i, l := range limbs {
+			ws[i] = big.Word(l)
+		}
+		return new(big.Int).SetBits(ws)
+	}
 	var buf [32]byte
 	for i := 0; i < 8; i++ {
 		binary.LittleEndian.PutUint32(buf[i*4:i*4+4], limbs[i])
@@ -225,12 +241,13 @@ func shamirMultiMul(P, Q *affinePoint, u1, u2 *big.Int) affinePoint {
 	if u2.BitLen() > maxBit {
 		maxBit = u2.BitLen()
 	}
+	l1, l2 := bigToLE8(u1), bigToLE8(u2)
 
 	var result affinePoint // identity
 	for i := maxBit - 1; i >= 0; i-- {
 		result.double()
-		b1 := u1.Bit(i)
-		b2 := u2.Bit(i)
+		b1 := (l1[i>>5] >> uint(i&31)) & 1
+		b2 := (l2[i>>5] >> uint(i&31)) & 1
 		if b1 == 1 && b2 == 1 {
 			result.add(&PplusQ)
 		} else if b1 == 1 {
