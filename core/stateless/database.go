@@ -52,5 +52,8 @@ func (w *Witness) MakeHashDB() ethdb.Database {
 		blob := unsafe.Slice(unsafe.StringData(node), len(node))
 		rawdb.WriteLegacyTrieNode(memdb, crypto.Keccak256Hash(blob), blob)
 	}
+	for _, blob := range w.stateList {
+		rawdb.WriteLegacyTrieNode(memdb, crypto.Keccak256Hash(blob), blob)
+	}
 	return memdb
 }
