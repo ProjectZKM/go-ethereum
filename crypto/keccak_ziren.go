@@ -36,8 +36,11 @@ func zirenKeccak256(chunks ...[]byte) (out [32]byte) {
 		n += len(c)
 	}
 	blocks := n/136 + 1
-	words := make([]uint32, blocks*36)
-	buf := unsafe.Slice((*byte)(unsafe.Pointer(&words[0])), len(words)*4)
+	// one allocation: the sponge input followed by the 17-word result, whose
+	// address would otherwise escape to the heap on its own
+	words := make([]uint32, blocks*36+17)
+	res := words[blocks*36:]
+	buf := unsafe.Slice((*byte)(unsafe.Pointer(&words[0])), blocks*36*4)
 	pos := 0
 	for _, c := range chunks {
 		for len(c) > 0 {
@@ -50,8 +53,7 @@ func zirenKeccak256(chunks ...[]byte) (out [32]byte) {
 	last := (blocks - 1) * 144
 	buf[last+n%136] ^= 0x01
 	buf[last+135] ^= 0x80
-	var res [17]uint32
-	res[16] = uint32(len(words))
+	res[16] = uint32(blocks * 36)
 	zkvm_runtime.SyscallKeccakSponge(unsafe.Pointer(&words[0]), unsafe.Pointer(&res[0]))
 	*(*[8]uint32)(unsafe.Pointer(&out)) = *(*[8]uint32)(unsafe.Pointer(&res[0]))
 	return out
