@@ -42,6 +42,10 @@ type Witness struct {
 	Codes   map[string]struct{} // Set of bytecodes ran or accessed
 	State   map[string]struct{} // Set of MPT state trie nodes (account and storage together)
 
+	// stateList holds decoded trie nodes kept as a list rather than in State
+	// (see setDecodedState); duplicates are harmless, a node is keyed by hash.
+	stateList [][]byte
+
 	chain HeaderReader // Chain reader to convert block hash ops to header proofs
 	lock  sync.Mutex   // Lock to allow concurrent state insertions
 }
@@ -112,6 +116,8 @@ func (w *Witness) Copy() *Witness {
 		Codes:   maps.Clone(w.Codes),
 		State:   maps.Clone(w.State),
 		chain:   w.chain,
+
+		stateList: slices.Clone(w.stateList),
 	}
 	if w.context != nil {
 		cpy.context = types.CopyHeader(w.context)

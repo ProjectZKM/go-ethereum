@@ -94,13 +94,6 @@ var bn254PMin2_u32 = func() [8]uint32 {
 	return out
 }()
 
-// R² mod p in [8]uint32 LE format (for Montgomery encode).
-var r2_u32 = func() [8]uint32 {
-	var out [8]uint32
-	*(*[4]uint64)(unsafe.Pointer(&out)) = *r2
-	return out
-}()
-
 // gfpInvertZiren computes e = f^{-1} in the field using Fermat's little theorem:
 // f^{-1} = f^{p-2} mod p. Uses SyscallUint256Mul for fast modular exponentiation.
 // Input f is in Montgomery form (f*R mod p). Output is also in Montgomery form.
@@ -132,9 +125,9 @@ func gfpInvertZiren(e, f *gfP) {
 		zkvm_runtime.SyscallUint256Mul(unsafe.Pointer(&base), unsafe.Pointer(&baseYmod))
 	}
 
-	// Step 3: Montgomery encode
-	zkvm_runtime.SyscallBn254FpMul(unsafe.Pointer(&result), unsafe.Pointer(&r2_u32))
-	*e = *(*gfP)(unsafe.Pointer(&result))
+	// Step 3: Montgomery encode. The syscall is a plain modular multiply, so
+	// encode with the Montgomery gfpMul: result * R^2 * R^{-1} = result * R.
+	gfpMul(e, (*gfP)(unsafe.Pointer(&result)), r2)
 }
 
 
